@@ -19,7 +19,7 @@ bedrock = boto3.client(service_name='bedrock-runtime')
 bedrock_embeddings=BedrockEmbeddings(model_id='amazon.titan-embed-text-v1', client=bedrock)
 
 
-def load_pdfs(chunk_size=1000, chunk_overlap=100):
+def load_pdfs(chunk_size=3000, chunk_overlap=100):
     loader=PyPDFDirectoryLoader("PDF Documents")
     documents=loader.load()
 
