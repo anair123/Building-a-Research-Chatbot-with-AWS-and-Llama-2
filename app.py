@@ -3,14 +3,15 @@ import json
 from glob import glob
 import sys
 import boto3
-import numpy as np
 from langchain_community.embeddings import BedrockEmbeddings
 from langchain.llms.bedrock import Bedrock
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFDirectoryLoader
+from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_community.vectorstores.faiss import FAISS
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
+from langchain.schema.runnable import Runnable
+from langchain.schema.runnable.config import RunnableConfig
 import chainlit as cl
 
 def create_client():
@@ -21,14 +22,13 @@ def create_llm(bedrock_client):
     llm = Bedrock(model_id='meta.llama2-13b-chat-v1', 
                   client=bedrock_client,
                   streaming=True,
-                  model_kwargs={'temperature':0, 'top_p':0.9})
+                  model_kwargs={'temperature':0})
     return llm
 
 def create_prompt():
 
     prompt_template = """
-    Use the provided information to answer the users questions. 
-    If you do not have the context required to answer the question, respond with "I don't know."
+    If the question is not relevant to the provided documents, respond with "I don't know" or "This question is outside the bounds of the data I am trained on".
 
     {context}
 
@@ -46,7 +46,7 @@ async def create_qa_chain():
 
     bedrock_client = boto3.client(service_name='bedrock-runtime')
 
-    llm = create_llm(bedrock_client==bedrock_client)
+    llm = create_llm(bedrock_client=bedrock_client)
 
     bedrock_embeddings=BedrockEmbeddings(model_id='amazon.titan-embed-text-v1', client=bedrock_client)
     vector_store = FAISS.load_local('faiss_index', bedrock_embeddings, allow_dangerous_deserialization=True)
@@ -69,10 +69,10 @@ async def create_qa_chain():
 async def generate_response(query):
     qa_chain = cl.user_session.get('qa_chain')
     
-    callback = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, answer_prefix_tokens= ["Final", "Answer"])
-    callback.answer_reached=True
-    res = await qa_chain.acall(query.content, callback)
-    
-    # send the response
-    await cl.Message(content=res['text']).send()
 
+    res = await qa_chain.acall(query.content, callbacks=[cl.AsyncLangchainCallbackHandler(
+        #stream_final_answer=True, 
+        #answer_prefix_tokens= ["Final", "Answer"]
+        )])
+
+    await cl.Message(content=res['result']).send()
