@@ -11,6 +11,10 @@ from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_community.vectorstores.faiss import FAISS
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA, ConversationalRetrievalChain
+from langchain.chains import (
+    StuffDocumentsChain, LLMChain, ConversationalRetrievalChain
+)
+from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import RunnableConfig
 import chainlit as cl
@@ -53,13 +57,29 @@ async def create_qa_chain():
     vector_store = FAISS.load_local('faiss_index', bedrock_embeddings, allow_dangerous_deserialization=True)
     prompt = create_prompt()
 
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, 
+    """qa_chain = RetrievalQA.from_chain_type(llm=llm, 
                                            chain_type='stuff', 
                                            retriever=vector_store.as_retriever(search_type='similarity', search_kwargs={"k":3}),
                                            return_source_documents=True,
-                                           chain_type_kwargs={'prompt':prompt},
-                                           max_tokens_limit=500)
+                                           #chain_type_kwargs={'prompt':prompt}
+                                           )"""
     
+    message_history = ChatMessageHistory()
+
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        output_key="answer",
+        chat_memory=message_history,
+        return_messages=True,
+    )
+
+    qa_chain = ConversationalRetrievalChain.from_llm(llm, 
+                                           chain_type='stuff', 
+                                           retriever=vector_store.as_retriever(search_type='similarity', search_kwargs={"k":3}),
+                                           return_source_documents=True,
+                                           #chain_type_kwargs={'prompt':prompt}
+                                           memory=memory
+                                           )
     msg = cl.Message(content="Loading the bot...")
     await msg.send()
     msg.content = "Hi, Welcome to the QA Chatbot! Please ask your question."
@@ -78,8 +98,8 @@ async def generate_response(query):
         )])
 
     # extract results and source documents
-    result, source_documents = res['result'], res['source_documents']
-    
+    #result, source_documents = res['result'], res['source_documents']
+    result, source_documents = res['answer'], res['source_documents']
     # Extract all values associated with the 'metadata' key
     source_documents = str(source_documents)
     metadata_values = re.findall(r"metadata={'source': '([^']*)', 'page': (\d+)}", source_documents)
@@ -87,7 +107,7 @@ async def generate_response(query):
     # Convert metadata_values into a single string
     metadata_string = "\n".join([f"Source: {source}, page: {page}" for source, page in metadata_values])
 
-    result += f'\n{metadata_string}'
+    result += f'\n\n{metadata_string}'
 
     print(result)
 
