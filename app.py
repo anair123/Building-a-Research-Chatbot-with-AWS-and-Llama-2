@@ -1,5 +1,6 @@
 
 import json
+import re
 from glob import glob
 import sys
 import boto3
@@ -9,7 +10,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_community.vectorstores.faiss import FAISS
 from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQA, ConversationalRetrievalChain
 from langchain.schema.runnable import Runnable
 from langchain.schema.runnable.config import RunnableConfig
 import chainlit as cl
@@ -22,7 +23,7 @@ def create_llm(bedrock_client):
     llm = Bedrock(model_id='meta.llama2-13b-chat-v1', 
                   client=bedrock_client,
                   streaming=True,
-                  model_kwargs={'temperature':0})
+                  model_kwargs={'temperature':0, 'top_p':0.9})
     return llm
 
 def create_prompt():
@@ -56,7 +57,8 @@ async def create_qa_chain():
                                            chain_type='stuff', 
                                            retriever=vector_store.as_retriever(search_type='similarity', search_kwargs={"k":3}),
                                            return_source_documents=True,
-                                           chain_type_kwargs={'prompt':prompt})
+                                           chain_type_kwargs={'prompt':prompt},
+                                           max_tokens_limit=500)
     
     msg = cl.Message(content="Loading the bot...")
     await msg.send()
@@ -71,8 +73,22 @@ async def generate_response(query):
     
 
     res = await qa_chain.acall(query.content, callbacks=[cl.AsyncLangchainCallbackHandler(
-        #stream_final_answer=True, 
+        stream_final_answer=True, 
         #answer_prefix_tokens= ["Final", "Answer"]
         )])
 
-    await cl.Message(content=res['result']).send()
+    # extract results and source documents
+    result, source_documents = res['result'], res['source_documents']
+    
+    # Extract all values associated with the 'metadata' key
+    source_documents = str(source_documents)
+    metadata_values = re.findall(r"metadata={'source': '([^']*)', 'page': (\d+)}", source_documents)
+
+    # Convert metadata_values into a single string
+    metadata_string = "\n".join([f"Source: {source}, page: {page}" for source, page in metadata_values])
+
+    result += f'\n{metadata_string}'
+
+    print(result)
+
+    await cl.Message(content=result).send()
