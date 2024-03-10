@@ -17,11 +17,11 @@ def create_client():
     bedrock = boto3.client(service_name='bedrock-runtime')
     return bedrock
 
-def create_llm(bedrock):
+def create_llm(bedrock_client):
     llm = Bedrock(model_id='meta.llama2-13b-chat-v1', 
-                  client=bedrock,
+                  client=bedrock_client,
                   streaming=True,
-                  model_kwargs={'temperature':1})
+                  model_kwargs={'temperature':0, 'top_p':0.9})
     return llm
 
 def create_prompt():
@@ -41,67 +41,38 @@ def create_prompt():
 
     return prompt 
 
-def create_qa_chain(llm, vector_store, prompt):
+@cl.on_chat_start
+async def create_qa_chain():
 
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, chain_type='stuff', 
+    bedrock_client = boto3.client(service_name='bedrock-runtime')
+
+    llm = create_llm(bedrock_client==bedrock_client)
+
+    bedrock_embeddings=BedrockEmbeddings(model_id='amazon.titan-embed-text-v1', client=bedrock_client)
+    vector_store = FAISS.load_local('faiss_index', bedrock_embeddings, allow_dangerous_deserialization=True)
+    prompt = create_prompt()
+
+    qa_chain = RetrievalQA.from_chain_type(llm=llm, 
+                                           chain_type='stuff', 
                                            retriever=vector_store.as_retriever(search_type='similarity', search_kwargs={"k":3}),
                                            return_source_documents=True,
                                            chain_type_kwargs={'prompt':prompt})
-    return qa_chain
-
-def generate_response(qa_chain, query):
-    response = qa_chain({"query":query})
-
-    return response['result']
-
-
-def main():
-
-    bedrock = boto3.client(service_name='bedrock-runtime')
-    llm = create_llm(bedrock=bedrock)
-    prompt = create_prompt()
-    bedrock_embeddings=BedrockEmbeddings(model_id='amazon.titan-embed-text-v1', client=bedrock)
-
-    query = 'What are some techniques that can be uses for interacting with tabular data with LLMs?'
-
-    vector_store = FAISS.load_local('faiss_index', bedrock_embeddings, allow_dangerous_deserialization=True)
-    response = generate_response(llm=llm, 
-                                 vector_store=vector_store, 
-                                 query=query,
-                                 prompt=prompt)
-
-    print(response)
-
-
-### start the app 
-@cl.on_chat_start
-async def start():
-     
-    bedrock = create_client()
-    llm = create_llm(bedrock=bedrock)
-    prompt = create_prompt()
-    bedrock_embeddings=BedrockEmbeddings(model_id='amazon.titan-embed-text-v1', client=bedrock)
-    vector_store = FAISS.load_local('faiss_index', bedrock_embeddings, allow_dangerous_deserialization=True)
-
-
-    qa_chain = create_qa_chain(llm=llm, prompt=prompt, vector_store=vector_store)
+    
     msg = cl.Message(content="Loading the bot...")
     await msg.send()
-    msg.content = "Hi, Welcome to the Chatbot! Please ask your question."
+    msg.content = "Hi, Welcome to the QA Chatbot! Please ask your question."
     await msg.update()
-    cl.user_session.set("chain", qa_chain)
-
+    
+    cl.user_session.set('qa_chain' ,qa_chain)
 
 @cl.on_message
-async def main(message):
-    chain = cl.user_session.get("chain")
-    cb = cl.AsyncLangchainCallbackHandler(
-        stream_final_answer=True, answer_prefix_tokens= ["Final", "Answer"]
-    )
-    cb.answer_reached=True
+async def generate_response(query):
+    qa_chain = cl.user_session.get('qa_chain')
+    
+    callback = cl.AsyncLangchainCallbackHandler(stream_final_answer=True, answer_prefix_tokens= ["Final", "Answer"])
+    callback.answer_reached=True
+    res = await qa_chain.acall(query.content, callback)
+    
+    # send the response
+    await cl.Message(content=res['text']).send()
 
-    res=await chain.acall(message.content, callbacks=[cb])
-    answer = res["result"]
-    sources = res['source_documents']
-
-    await cl.Message(content=answer).send()
