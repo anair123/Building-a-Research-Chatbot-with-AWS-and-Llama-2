@@ -105,7 +105,9 @@ async def generate_response(query):
     metadata_values = re.findall(r"metadata={'source': '([^']*)', 'page': (\d+)}", source_documents)
 
     # Convert metadata_values into a single string
-    metadata_string = "\n".join([f"Source: {source}, page: {page}" for source, page in metadata_values])
+    pattern = r'PDF Documents|\\'
+
+    metadata_string = "\n".join([f"Source: {re.sub(pattern, '', source)}, page: {page}" for source, page in metadata_values])
 
     result += f'\n\n{metadata_string}'
 
