@@ -13,8 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the current directory contents into the container at /app
 COPY . .
 
-# Expose the port that the app runs on
-EXPOSE 8501
-
 # Command to run the application
-CMD ["chainlit", "run", "app.py"]
+CMD ["chainlit", "run", "app.py", "--host=0.0.0.0", "--port=80", "--headless"]
