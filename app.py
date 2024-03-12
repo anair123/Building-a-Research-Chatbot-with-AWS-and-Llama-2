@@ -55,14 +55,6 @@ async def create_qa_chain():
 
     bedrock_embeddings=BedrockEmbeddings(model_id='amazon.titan-embed-text-v1', client=bedrock_client)
     vector_store = FAISS.load_local('faiss_index', bedrock_embeddings, allow_dangerous_deserialization=True)
-    prompt = create_prompt()
-
-    """qa_chain = RetrievalQA.from_chain_type(llm=llm, 
-                                           chain_type='stuff', 
-                                           retriever=vector_store.as_retriever(search_type='similarity', search_kwargs={"k":3}),
-                                           return_source_documents=True,
-                                           #chain_type_kwargs={'prompt':prompt}
-                                           )"""
     
     message_history = ChatMessageHistory()
 
