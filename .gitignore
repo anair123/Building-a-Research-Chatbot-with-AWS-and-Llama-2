@@ -1,2 +1,4 @@
 Credentials/
 venv/
+config.py
+docker_instructions.txt
