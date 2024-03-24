@@ -24,7 +24,6 @@ def create_client():
     return bedrock
 
 
-
 def load_pdfs(chunk_size=3000, chunk_overlap=100):
 
     # load the pdf documents
