@@ -29,6 +29,8 @@ def create_client():
     return bedrock
 
 def create_llm(bedrock_client):
+
+    # load llama2 
     llm = Bedrock(model_id='meta.llama2-13b-chat-v1', 
                   client=bedrock_client,
                   streaming=True,
