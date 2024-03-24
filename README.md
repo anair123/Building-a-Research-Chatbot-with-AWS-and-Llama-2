@@ -1,5 +1,6 @@
 # Building-a-Research-Chatbot-with-AWS-and-Llama-2
-![image](https://github.com/anair123/Building-a-Research-Chatbot-with-AWS-and-Llama-2/assets/47230033/bc5a1ec1-5fd7-4bd5-a6f1-eacf0510b491)
+![image](https://github.com/anair123/Building-a-Research-Chatbot-with-AWS-and-Llama-2/assets/47230033/923bd920-c2e5-4503-b0e6-e5f7df111f76)
+
 
 
 ## Introduction
